@@ -1,0 +1,4 @@
+(test
+  (name CS51UtilsTests)
+  (modes byte)
+  (libraries CS51Utils alcotest qcheck qcheck-alcotest))

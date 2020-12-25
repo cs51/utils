@@ -1,0 +1,51 @@
+
+name: Main Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-version:
+          - 4.08.1
+          - 4.09.1
+          - 4.10.1
+          - 4.11.1
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Retrieve opam cache
+        uses: actions/cache@v2
+        id: cache-opam
+        with:
+          path: ~/.opam
+          key: v1-${{ runner.os }}-cs51_utils-${{ matrix.ocaml-version }}-${{ hashFiles('*.opam') }}
+
+      - name: Use OCaml ${{ matrix.ocaml-version }}
+        uses: avsm/setup-ocaml@v1
+        with:
+          ocaml-version: ${{ matrix.ocaml-version }}
+
+      - run: opam pin add cs51-utils . --no-action
+
+      - run: opam depext cs51-utils --yes --with-doc --with-test
+
+      - run: opam install . --deps-only --with-doc --with-test
+
+      - run: opam exec -- dune build --no-buffer
+
+      - run: opam exec -- dune runtest --no-buffer

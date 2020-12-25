@@ -1,0 +1,7 @@
+(library
+ (name CS51Utils)
+ (public_name CS51Utils)
+ (modules absbook)
+ (libraries unix)
+ (synopsis "CS51 Student Utilities")
+)
