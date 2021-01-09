@@ -1,6 +1,6 @@
 # Frontend to dune.
 
-.PHONY: default build install uninstall test clean
+.PHONY: default build install uninstall test clean utop
 
 default: build
 
@@ -18,6 +18,7 @@ uninstall:
 
 clean:
 	dune clean
-# Optionally, remove all files/folders ignored by git as defined
-# in .gitignore (-X).
 	git clean -dfXq
+
+utop:
+	dune utop lib
