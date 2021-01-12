@@ -1,0 +1,5 @@
+(executable
+ (name graphics_check)
+ (libraries graphics)
+ (public_name cs51-graphics-check)
+ (package CS51Utils))
