@@ -112,3 +112,113 @@ let call_reporting_time ?(count : int = 1) (f : 'a -> 'b) (x : 'a) : 'b =
   let result, time = call_timed ~count f x in
   Printf.printf "time (msecs): %f\n" time;
   result ;;
+
+(*----------------------------------------------------------------------
+  Timeouts
+
+  This section provides the ability to evaluate expressions with a
+  "timeout", a maximum amount of time the expression may take
+  before being abandoned. For instance,
+
+      timeout 5.0 (lazy expr)
+
+  forces `expr` for up to five seconds; if `expr` produces a value
+  within that budget, its value is returned; otherwise the special
+  exception `Timeout` is raised in place of a result. The budget is
+  a count of seconds, but fractional budgets are supported:
+  `timeout 0.1 (lazy expr)` caps `expr` at one hundred milliseconds.
+
+  Timeouts are useful whenever a computation could fail to
+  terminate or could take an unacceptable amount of time -- for
+  example, in a unit-test harness that must remain responsive
+  even when one of its tests runs forever.
+
+  This section uses facilities of OCaml well beyond the scope 
+  of this book. The interested student may want to look this
+  over after they've completed the full course.
+ *)
+
+(* The exception raised by `timeout` when its time budget expires
+   before the wrapped computation completes. *)
+exception Timeout
+
+(* The three possible ways a `timeout` call can end:
+     - `Done (Ok v)`    -- the computation returned `v`
+     - `Done (Error e)` -- the computation raised exception `e`
+     - `Timed_out`      -- the watchdog fired before the computation
+                           finished
+   We collapse "returned" and "raised" into the standard
+   `('a, exn) result` type, then pair that with a separate
+   `Timed_out` constructor so the synchronization protocol used
+   inside `timeout` needn't mix exception-throwing with
+   outcome-reporting. *)
+type 'a outcome = Done of ('a, exn) result | Timed_out
+
+(* timeout time f -- Forces lazy computation `f`, returning what `f`
+   returns if it completes within `time` seconds (fractional values
+   allowed), and raising `Timeout` otherwise. Exceptions raised by
+   `f` itself propagate to the caller unchanged.
+
+   Implemented as a race between two helper threads -- a worker that
+   runs the computation and a watchdog that sleeps for the time
+   budget -- moderated by the main thread, which sleeps on a
+   condition variable until one of them reports an outcome.
+
+   Note that when the watchdog fires and `timeout` raises, the
+   worker thread is NOT killed; any side effects in `f` that haven't
+   yet executed may still execute in the background. Forcibly
+   killing threads is unsafe (mutexes left locked, partial state),
+   so we accept the leak. For non-terminating workloads such as
+   deadlocks, the worker is stuck and harmless; for runaway
+   terminating workloads it will eventually complete and silently
+   discard its result. *)
+let timeout (time : float) (f : 'a Lazy.t) : 'a =
+
+  (* Shared state. `m` guards `outcome` (and serializes the
+     condition-variable protocol); `c` is what the main thread
+     sleeps on; `outcome` records the first reported result. *)
+  let m = Mutex.create () in
+  let c = Condition.create () in
+  let outcome : 'a outcome option ref = ref None in
+
+  (* `finish o` -- The reporting protocol used by both helper
+     threads. Takes the lock, and IF no outcome has been recorded
+     yet, records `o` and wakes the main thread. Otherwise the
+     report is silently dropped: only the first finisher wins. *)
+  let finish o =
+    Mutex.lock m;
+    if !outcome = None then begin
+      outcome := Some o;
+      Condition.signal c
+    end;
+    Mutex.unlock m in
+
+  (* Worker thread. Forces `f`, catching any exception so it
+     becomes part of the reported outcome rather than silently
+     terminating the worker. *)
+  let _ = Thread.create (fun () ->
+    finish (Done (try Ok (Lazy.force f) with e -> Error e))) () in
+
+  (* Watchdog thread. Sleeps (real sleep, not busy-waiting) for the
+     time budget, then reports `Timed_out`. *)
+  let _ = Thread.create (fun () ->
+    Thread.delay time;
+    finish Timed_out) () in
+
+  (* Main thread waits. Standard condition-variable idiom:
+     `Condition.wait c m` atomically releases `m` and parks the
+     thread, then re-acquires `m` and returns when signaled. The
+     `while` guards against spurious wakeups. *)
+  Mutex.lock m;
+  while !outcome = None do Condition.wait c m done;
+  Mutex.unlock m;
+
+  (* Dispatch on the recorded outcome. Three real cases plus an
+     impossible one (the wait loop guarantees outcome is `Some _`,
+     but the `None -> assert false` arm preserves exhaustiveness
+     without resorting to a wildcard). *)
+  match !outcome with
+  | Some (Done (Ok v))    -> v
+  | Some (Done (Error e)) -> raise e
+  | Some Timed_out        -> raise Timeout
+  | None                  -> assert false ;;

@@ -2,6 +2,6 @@
  (name CS51Utils)
  (public_name CS51Utils)
  (modules absbook)
- (libraries unix)
+ (libraries unix threads.posix)
  (synopsis "CS51 Student Utilities")
 )
