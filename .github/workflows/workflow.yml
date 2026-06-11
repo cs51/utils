@@ -1,4 +1,3 @@
-
 name: Main Workflow
 
 on:
@@ -8,6 +7,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,37 +15,37 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          - ubuntu-22.04
+          - macos-latest
         ocaml-version:
-          - 4.08.1
-          - 4.09.1
-          - 4.10.1
-          - 4.11.1
+          - 4.14.2  # Latest OCaml 4.x
+          - 5.2.1   # Latest OCaml 5.x
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Retrieve opam cache
-        uses: actions/cache@v2
-        id: cache-opam
+      - name: Restore opam Cache
+        uses: actions/cache@v4
         with:
           path: ~/.opam
-          key: v1-${{ runner.os }}-cs51_utils-${{ matrix.ocaml-version }}-${{ hashFiles('*.opam') }}
+          key: ${{ runner.os }}-${{ matrix.ocaml-version }}-opam-folder
 
       - name: Use OCaml ${{ matrix.ocaml-version }}
-        uses: avsm/setup-ocaml@v1
+        uses: avsm/setup-ocaml@v2
         with:
-          ocaml-version: ${{ matrix.ocaml-version }}
+          ocaml-compiler: ${{ matrix.ocaml-version }}
 
-      - run: opam pin add cs51-utils . --no-action
+      - name: Pin package
+        run: opam pin add CS51Utils . --no-action
 
-      - run: opam depext cs51-utils --yes --with-doc --with-test
+      - name: Install dependencies
+        run: opam install . --deps-only --with-doc --with-test --yes
 
-      - run: opam install . --deps-only --with-doc --with-test
+      - name: Build
+        run: opam exec -- dune build --no-buffer
 
-      - run: opam exec -- dune build --no-buffer
-
-      - run: opam exec -- dune runtest --no-buffer
+      - name: Test
+        run: opam exec -- dune runtest --no-buffer
