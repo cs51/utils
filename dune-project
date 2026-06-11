@@ -11,6 +11,7 @@
  (synopsis "CS51 Utilities")
  (description "Utilities that might be helpful during CS51.")
  (depends
+   graphics
    (alcotest (>= 1.2.0))
    (qcheck (>= 0.16))
    (qcheck-alcotest (>= 0.16))
