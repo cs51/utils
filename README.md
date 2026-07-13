@@ -12,7 +12,7 @@ Installation
 The fastest way to install `cs51/utils` is with `opam`:
 
 ```
-opam pin add CS51Utils ssh://git@github.com:cs51/utils.git
+opam pin add CS51Utils https://github.com/cs51/utils.git
 ```
 
 For more information on `opam pin`, please consult the
@@ -37,12 +37,11 @@ $ make test
 Using `cs51/utils` in utop
 --
 
-Use `make utop` where DIR if the folder contains the `dune`
-file for a library. For instance, our `sub2` sample library can be
-used as follows:
+Run `make utop` (a thin wrapper around `dune utop lib`) to open a
+`utop` session with the library loaded:
 
 ```ocaml
-$ dune utop sub2/lib
+$ make utop
 ...
 utop # CS51Utils.Absbook.id 51 ;;
 - : int = 51
